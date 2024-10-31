@@ -1,7 +1,8 @@
 using Content.Server.Administration.Logs;
 using Content.Server.Weapons.Ranged.Systems;
-using Content.Shared.CombatMode.Pacification;
+using Content.Shared._RMC14.Weapons.Melee;
 using Content.Shared.Camera;
+using Content.Shared.CombatMode.Pacification;
 using Content.Shared.Damage;
 using Content.Shared.Damage.Components;
 using Content.Shared.Damage.Events;
@@ -10,7 +11,7 @@ using Content.Shared.Database;
 using Content.Shared.Effects;
 using Content.Shared.Mobs.Components;
 using Content.Shared.Throwing;
-using Content.Shared.Wires;
+using Content.Shared.Whitelist;
 using Robust.Shared.Physics.Components;
 using Robust.Shared.Player;
 
@@ -24,6 +25,7 @@ namespace Content.Server.Damage.Systems
         [Dependency] private readonly DamageExamineSystem _damageExamine = default!;
         [Dependency] private readonly SharedCameraRecoilSystem _sharedCameraRecoil = default!;
         [Dependency] private readonly SharedColorFlashEffectSystem _color = default!;
+        [Dependency] private readonly EntityWhitelistSystem _whitelist = default!;
 
         public override void Initialize()
         {
@@ -37,7 +39,14 @@ namespace Content.Server.Damage.Systems
             if (TerminatingOrDeleted(args.Target))
                 return;
 
-            var dmg = _damageable.TryChangeDamage(args.Target, component.Damage, component.IgnoreResistances, origin: args.Component.Thrower);
+            var damage = component.Damage;
+            if (TryComp(uid, out MeleeDamageMultiplierComponent? meleeDamage))
+            {
+                if (_whitelist.IsValid(meleeDamage.Whitelist, args.Target))
+                    damage += component.Damage * meleeDamage.Multiplier;
+            }
+
+            var dmg = _damageable.TryChangeDamage(args.Target, damage, component.IgnoreResistances, origin: args.Component.Thrower);
 
             // Log damage only for mobs. Useful for when people throw spears at each other, but also avoids log-spam when explosions send glass shards flying.
             if (dmg != null && HasComp<MobStateComponent>(args.Target))
